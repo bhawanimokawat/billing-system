@@ -111,6 +111,12 @@
             text-align: center;
         }
 
+        .pdf-mode table,
+        .pdf-mode th,
+        .pdf-mode td {
+            border: 1px solid black;
+        }
+
         /* 📱 Responsive */
         /* 📱 Mobile Improvement */
         @media (max-width: 600px) {
@@ -318,43 +324,91 @@
         /* 📄 PDF Download */
         async function downloadPDF() {
             const { jsPDF } = window.jspdf;
+
             let bill = document.getElementById("billArea");
-
             bill.classList.add("pdf-mode");
-
-            const canvas = await html2canvas(bill, {
-                scale: 4,
-                useCORS: true
-            });
-
-            const imgData = canvas.toDataURL("image/png");
 
             let pdf = new jsPDF('p', 'mm', 'a4');
 
-            let pageWidth = pdf.internal.pageSize.getWidth();
-            let pageHeight = pdf.internal.pageSize.getHeight();
+            const rowsPerPage = 32;
 
-            let imgWidth = pageWidth - 20;
-            let imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let allRows = Array.from(document.querySelectorAll("#billTable tr"));
 
-            let heightLeft = imgHeight;
-            let position = 10;
+            let header = allRows[0];
 
-            pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
+            let totalRows = allRows.slice(-2);
 
-            while (heightLeft > 0) {
-                position = heightLeft - imgHeight + 10;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
+            let dataRows = allRows.slice(1, -2);
+
+            let chunks = [];
+
+            for (let i = 0; i < dataRows.length; i += rowsPerPage) {
+                chunks.push(dataRows.slice(i, i + rowsPerPage));
+            }
+
+            for (let page = 0; page < chunks.length; page++) {
+
+                let tempTable = document.createElement("table");
+                tempTable.style.width = "100%";
+                tempTable.style.borderCollapse = "collapse";
+
+                tempTable.appendChild(header.cloneNode(true));
+
+                chunks[page].forEach(row => {
+                    tempTable.appendChild(row.cloneNode(true));
+                });
+
+                // last page → show totals
+                if (page === chunks.length - 1) {
+                    totalRows.forEach(row => {
+                        tempTable.appendChild(row.cloneNode(true));
+                    });
+                }
+
+                let tempDiv = document.createElement("div");
+
+                tempDiv.innerHTML = `
+            <h2 style="text-align:center;">
+                BILL SHYAM TIFFIN CENTER
+            </h2>
+        `;
+
+                tempDiv.appendChild(tempTable);
+
+                if (page === chunks.length - 1) {
+                    tempDiv.innerHTML += `
+            <h3 style="text-align:center;">
+                Total Amount : ₹ ${document.getElementById("grandTotal").innerText}
+            </h3>
+            `;
+                }
+
+                document.body.appendChild(tempDiv);
+
+                const canvas = await html2canvas(tempDiv, {
+                    scale: 4,
+                    useCORS: true
+                });
+
+                const imgData = canvas.toDataURL("image/png");
+
+                let pageWidth = pdf.internal.pageSize.getWidth();
+                let imgWidth = pageWidth - 20;
+
+                let imgHeight =
+                    (canvas.height * imgWidth) / canvas.width;
+
+                if (page > 0) pdf.addPage();
+
+                pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+
+                document.body.removeChild(tempDiv);
             }
 
             pdf.save("Shyam_Tiffin_Bill.pdf");
 
             bill.classList.remove("pdf-mode");
         }
-
 
 
     </script>
